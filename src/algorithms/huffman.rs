@@ -39,29 +39,45 @@ pub struct Huffman {
 
 
 impl Huffman {
+    // Fill the values in a Huffman struct with the given string slice
     pub fn encode(s: &str) -> Huffman {
         let mut h = Huffman::default();
         if s.is_empty() { return h; }
 
         // Frequency table
-        for ch in s.chars() {
-            *h.freq_table.entry(ch).or_insert(0) += 1;
-        }
+        h.frequency_table(s);
 
         // The tree
+        h.create_tree();
+
+        // coders
+        h.code_elements();
+
+        h
+    }
+
+
+    // Create frequency table
+    fn frequency_table(&mut self, s: &str) {
+        for ch in s.chars() {
+            *self.freq_table.entry(ch).or_insert(0) += 1;
+        }
+    }
+
+
+    // Create tree (Min Heap)
+    fn create_tree(&mut self) {
         // Firstly collect nodes
         let mut node_list: Vec<Node> = vec![];
 
-        for (&k, &v) in h.freq_table.iter() {
-            node_list.push(
-                Node::new(k, v)
-            )
+        for (&k, &v) in self.freq_table.iter() {
+            node_list.push(Node::new(k, v))
         }
 
         // Sort by frequency, smallest to largest
-        node_list.sort_by_key(|n| n.freq);
+        node_list.sort_unstable_by_key(|n| n.freq);
 
-        // Create internal nodes
+        // Create internal nodes and the tree structure
         while node_list.len() > 1 {
             // Get first two elements
             let first: Node = node_list.remove(0);
@@ -74,14 +90,11 @@ impl Huffman {
             node_list.insert(position, internal);
         }
 
-        h.tree_root = Some(Box::new(node_list.remove(0)));
-
-        h.code_elements();
-
-        h
+        self.tree_root = Some(Box::new(node_list.remove(0)));
     }
 
 
+    // Create code table
     fn code_elements(&self) {
         // TODO: do
     }
