@@ -50,7 +50,7 @@ impl Huffman {
         // The tree
         h.create_tree();
 
-        // coders
+        // Create code table
         h.code_elements();
 
         h
@@ -95,8 +95,25 @@ impl Huffman {
 
 
     // Create code table
-    fn code_elements(&self) {
-        // TODO: do
+    fn code_elements(&mut self) {
+        travel(&mut self.code_table, &self.tree_root, String::new());
+    }
+}
+
+
+
+// Travel through the tree for coding
+fn travel(code_table: &mut HashMap<char, String>, node: &Option<Box<Node>>, code: String) {
+    if let Some(n) = node {
+        match n.val {
+            NodeKind::Leaf(ch) => {
+                code_table.insert(ch, code);
+            },
+            NodeKind::Internal => {
+                travel(code_table, &n.left, format!("{code}0"));
+                travel(code_table, &n.right, format!("{code}1"));
+            },
+        }
     }
 }
 
