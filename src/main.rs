@@ -29,6 +29,7 @@ struct AlgoApp {
     last_tick: Instant,
     step: usize,
     total_steps: usize,
+    huf_scroll_check: bool,
     huffman: Huffman,
     lzw: Lzw,
 }
@@ -44,6 +45,7 @@ impl Default for AlgoApp {
             last_tick: Instant::now(),
             step: 0,
             total_steps: 0,
+            huf_scroll_check: true,
             huffman: Huffman::default(),
             lzw: Lzw::default(),
         }
@@ -110,6 +112,11 @@ impl eframe::App for AlgoApp {
                 ui.selectable_value(&mut self.selected, Algo::Huffman, "🌳 Huffman Encoding");
                 ui.add_space(5.0);
                 ui.selectable_value(&mut self.selected, Algo::Lzw, "📑 LZW Encoding");
+
+                if self.selected == Algo::Huffman {
+                    ui.add_space(20.0);
+                    ui.checkbox(&mut self.huf_scroll_check, "Scroll Tree");
+                }
 
                 ui.add_space(20.0);
                 ui.label("Text:");
@@ -319,46 +326,62 @@ impl eframe::App for AlgoApp {
 
                     match self.selected {
                         Algo::Huffman => {
-                            let freq_count = self.huffman.freq_table.len();
-                            let merge_count = freq_count.saturating_sub(1);
+                            egui::ScrollArea::horizontal().show(ui, |ui| {
+                                let freq_count = self.huffman.freq_table.len();
+                                let merge_count = freq_count.saturating_sub(1);
 
-                            let tree_phase_start = freq_count;
-                            let tree_phase_end = freq_count + merge_count;
+                                let tree_phase_start = freq_count;
+                                let tree_phase_end = freq_count + merge_count;
 
-                            // Show the tree only in tree phase and after
-                            if self.step > tree_phase_start || self.step >= self.total_steps {
-                                let visible_merges = if self.step > tree_phase_end {
-                                    merge_count
+                                // Show the tree only in tree phase and after
+                                if self.step > tree_phase_start || self.step >= self.total_steps {
+                                    let visible_merges = if self.step > tree_phase_end {
+                                        merge_count
+                                    } else {
+                                        self.step - tree_phase_start
+                                    };
+
+
+                                    let width =
+                                        if let Some(node) = &self.huffman.tree_root && self.huf_scroll_check {
+                                            subtree_width(node, 80.0)
+                                        } else {
+                                            ui.available_width()
+                                        };
+
+                                    let (response, painter) =
+                                        ui.allocate_painter(
+                                            egui::Vec2::new(width, ui.available_height()),
+                                            egui::Sense::hover(),
+                                        );
+                                    let rect = response.rect;
+
+                                    if let Some(root) = &self.huffman.tree_root {
+                                        draw_node(
+                                            &painter,
+                                            root,
+                                            rect.center().x,
+                                            rect.top() + 80.0,
+                                            rect.width() / 4.0,
+                                            visible_merges,
+                                        );
+                                    }
                                 } else {
-                                    self.step - tree_phase_start
-                                };
-
-                                let (response, painter) =
-                                    ui.allocate_painter(ui.available_size(), egui::Sense::hover());
-                                let rect = response.rect;
-
-                                if let Some(root) = &self.huffman.tree_root {
-                                    draw_node(
-                                        &painter,
-                                        root,
-                                        rect.center().x,
-                                        rect.top() + 80.0,
-                                        rect.width() / 4.0,
-                                        visible_merges,
+                                    // The canvas is empty in frequency steps
+                                    let (response, painter) =
+                                        ui.allocate_painter(
+                                            ui.available_size(),
+                                            egui::Sense::hover(),
+                                        );
+                                    painter.text(
+                                        response.rect.center(),
+                                        Align2::CENTER_CENTER,
+                                        "Tree will appear here",
+                                        FontId::proportional(16.0),
+                                        Color32::DARK_GRAY,
                                     );
                                 }
-                            } else {
-                                // The canvas is empty in frequency steps
-                                let (response, painter) =
-                                    ui.allocate_painter(ui.available_size(), egui::Sense::hover());
-                                painter.text(
-                                    response.rect.center(),
-                                    Align2::CENTER_CENTER,
-                                    "Tree will appear here",
-                                    FontId::proportional(16.0),
-                                    Color32::DARK_GRAY,
-                                );
-                            }
+                            });
                         }
                         Algo::Lzw => {
                             // Column headers
@@ -454,6 +477,27 @@ impl eframe::App for AlgoApp {
         });
     }
 }
+
+fn subtree_width(node: &Node, spacing: f32) -> f32 {
+    match (&node.left, &node.right) {
+        (None, None) => spacing,
+
+        (Some(left), None) => {
+            subtree_width(left, spacing) + spacing
+        }
+
+        (None, Some(right)) => {
+            spacing + subtree_width(right, spacing)
+        }
+
+        (Some(left), Some(right)) => {
+            subtree_width(left, spacing)
+                + spacing
+                + subtree_width(right, spacing)
+        }
+    }
+}
+
 
 // Draw node recursively — show as many merges as visible_merges
 fn draw_node(
