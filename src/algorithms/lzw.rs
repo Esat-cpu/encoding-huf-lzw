@@ -9,13 +9,13 @@ pub struct Lzw {
 
 #[derive(Default)]
 pub struct LzwStep {
-    number: usize,
-    input: char,
-    buffer: String,
-    in_dict: bool,
-    temp: String,
-    atd: String, // add to (the) dictionary (code_table)
-    output: String,
+    pub number: usize,
+    pub input: char,
+    pub buffer: String,
+    pub in_dict: bool,
+    pub temp: String,
+    pub atd: String, // add to (the) dictionary (code_table)
+    pub output: String,
 }
 
 
@@ -40,11 +40,11 @@ impl Lzw {
             let atd: String;
 
             if in_dict {
-                output = temp.clone();
+                output = "--".to_owned();
                 temp = buffer.clone();
                 atd = "--".to_owned();
             } else {
-                output = "--".to_owned();
+                output = temp.clone();
                 temp = input.to_string();
                 let code = lzw.code_table.len();
                 atd = format!("{buffer}({code})");
