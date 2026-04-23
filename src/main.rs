@@ -2,10 +2,13 @@ mod algorithms;
 
 use eframe::egui::{self, Align2, Color32, FontId, Painter, Pos2, Stroke};
 use std::time::{Duration, Instant};
+use std::fs;
 
 use crate::algorithms::huffman::{Huffman, Node, NodeKind};
 use crate::algorithms::lzw::Lzw;
 
+
+const FILE: &str = "file.txt";
 
 #[derive(PartialEq, Copy, Clone)]
 enum Algo {
@@ -30,6 +33,7 @@ struct AlgoApp {
     step: usize,
     total_steps: usize,
     huf_scroll_check: bool,
+    file: &'static str,
     huffman: Huffman,
     lzw: Lzw,
 }
@@ -46,6 +50,7 @@ impl Default for AlgoApp {
             step: 0,
             total_steps: 0,
             huf_scroll_check: true,
+            file: FILE,
             huffman: Huffman::default(),
             lzw: Lzw::default(),
         }
@@ -121,6 +126,10 @@ impl eframe::App for AlgoApp {
                 ui.add_space(20.0);
                 ui.label("Text:");
                 ui.text_edit_singleline(&mut self.input);
+
+                if ui.button(format!("Read from the '{}' file", self.file)).clicked() {
+                    self.input = readline_from_file(self.file);
+                }
 
                 ui.add_space(20.0);
                 ui.label("Work Flow");
@@ -637,6 +646,15 @@ fn draw_node(
         }
     }
 }
+
+
+
+fn readline_from_file(file: &str) -> String {
+    let content = fs::read_to_string(file).unwrap_or_default();
+    content.lines().next().unwrap_or("").to_string()
+}
+
+
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
