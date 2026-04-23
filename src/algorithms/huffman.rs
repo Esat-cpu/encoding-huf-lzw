@@ -1,30 +1,32 @@
 use std::collections::HashMap;
 
 
-enum NodeKind {
+pub enum NodeKind {
     Leaf(char),
     Internal,
 }
 
-struct Node {
-    val: NodeKind,
-    freq: u32,
-    left: Option<Box<Node>>,
-    right: Option<Box<Node>>,
+pub struct Node {
+    pub val: NodeKind,
+    pub freq: u32,
+    pub left: Option<Box<Node>>,
+    pub right: Option<Box<Node>>,
+    pub order: usize,
 }
 
 
 impl Node {
     fn new(val: char, freq: u32) -> Self {
-        Self { val: NodeKind::Leaf(val), freq, left: None, right: None }
+        Self { val: NodeKind::Leaf(val), freq, left: None, right: None, order: 0 }
     }
 
-    fn merge(left: Node, right: Node) -> Node {
+    fn merge(left: Node, right: Node, merge_count: usize) -> Node {
         Node {
             val: NodeKind::Internal,
             freq: left.freq + right.freq,
             left: Some(Box::new(left)),
             right: Some(Box::new(right)),
+            order: merge_count,
         }
     }
 }
@@ -34,7 +36,7 @@ impl Node {
 pub struct Huffman {
     pub freq_table: HashMap<char, u32>,
     pub code_table: HashMap<char, String>,
-    tree_root: Option<Box<Node>>,
+    pub tree_root: Option<Box<Node>>,
 }
 
 
@@ -78,6 +80,7 @@ impl Huffman {
         node_list.sort_unstable_by_key(|n| n.freq);
 
         // Create internal nodes and the tree structure
+        let mut merge_count = 0;
         while node_list.len() > 1 {
             // Get first two elements
             let first: Node = node_list.remove(0);
@@ -85,7 +88,8 @@ impl Huffman {
 
             // merge it
             // than insert the merged one to the right position in the list
-            let internal = Node::merge(first, second);
+            merge_count += 1;
+            let internal = Node::merge(first, second, merge_count);
             let position = node_list.partition_point(|n| n.freq < internal.freq);
             node_list.insert(position, internal);
         }
