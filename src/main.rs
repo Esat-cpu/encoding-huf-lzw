@@ -1,14 +1,17 @@
 mod algorithms;
 
-use eframe::egui::{self, Painter, Pos2, Stroke, FontId, Align2, Color32};
+use eframe::egui::{self, Align2, Color32, FontId, Painter, Pos2, Stroke};
 use std::time::{Duration, Instant};
 
 use crate::algorithms::huffman::{Huffman, Node, NodeKind};
-use crate::algorithms::lzw::{Lzw, LzwStep};
+use crate::algorithms::lzw::Lzw;
 
 
 #[derive(PartialEq)]
-enum Algo { Huffman, Lzw }
+enum Algo {
+    Huffman,
+    Lzw,
+}
 
 #[derive(PartialEq)]
 enum State {
@@ -78,144 +81,197 @@ impl eframe::App for AlgoApp {
         }
 
         // Left Panel
-        egui::Panel::left("controls").resizable(false).default_size(220.0).show_inside(ui, |ui| {
-            ui.add_space(20.0);
-            ui.heading("🔬 Menu");
-            ui.separator();
-            ui.add_space(10.0);
+        egui::Panel::left("controls")
+            .resizable(false)
+            .default_size(220.0)
+            .show_inside(ui, |ui| {
+                ui.add_space(20.0);
+                ui.heading("🔬 Menu");
+                ui.separator();
+                ui.add_space(10.0);
 
-            ui.label("Choose Algorithm:");
-            ui.add_space(5.0);
-            ui.selectable_value(&mut self.selected, Algo::Huffman, "🌳 Huffman Encoding");
-            ui.add_space(5.0);
-            ui.selectable_value(&mut self.selected, Algo::Lzw, "📑 LZW Encoding");
+                ui.label("Choose Algorithm:");
+                ui.add_space(5.0);
+                ui.selectable_value(&mut self.selected, Algo::Huffman, "🌳 Huffman Encoding");
+                ui.add_space(5.0);
+                ui.selectable_value(&mut self.selected, Algo::Lzw, "📑 LZW Encoding");
 
-            ui.add_space(20.0);
-            ui.label("Text:");
-            ui.text_edit_singleline(&mut self.input);
+                ui.add_space(20.0);
+                ui.label("Text:");
+                ui.text_edit_singleline(&mut self.input);
 
-            ui.add_space(20.0);
-            ui.label("Work Flow");
-            ui.add(egui::Slider::new(&mut self.speed, 1.0..=10.0).text("Speed"));
+                ui.add_space(20.0);
+                ui.label("Work Flow");
+                ui.add(egui::Slider::new(&mut self.speed, 1.0..=10.0).text("Speed"));
 
-            ui.add_space(20.0);
+                ui.add_space(20.0);
 
-            let btn_text = if self.state == State::Playing { "⏸  STOP" }
-                else if self.state == State::Paused { "▶  CONTINUE" }
-                else { "▶  START" };
+                let btn_text = if self.state == State::Playing {
+                    "⏸  PAUSE"
+                } else if self.state == State::Paused {
+                    "▶  CONTINUE"
+                } else {
+                    "▶  START"
+                };
 
-            let btn = egui::Button::new(btn_text)
-                .fill(if self.state == State::Playing {
+                let btn = egui::Button::new(btn_text).fill(if self.state == State::Playing {
                     Color32::from_rgb(180, 50, 50)
                 } else {
                     Color32::from_rgb(50, 150, 80)
                 });
 
-            if ui.add_sized([ui.available_width(), 45.0], btn).clicked() {
-                if self.state == State::Still {
-                    self.step = 0;
-                    match self.selected {
-                        Algo::Huffman => {
-                            self.huffman = Huffman::encode(&self.input);
-                            // 1: freq table steps (for each unique character)
-                            let freq_steps = self.huffman.freq_table.len();
-                            // 2: building tree steps (for each merge)
-                            let merge_steps = freq_steps.saturating_sub(1);
-                            // 3: code table steps (for each unique character)
-                            let code_steps = self.huffman.code_table.len();
-                            self.total_steps = freq_steps + merge_steps + code_steps;
+                if ui.add_sized([ui.available_width(), 45.0], btn).clicked() {
+                    if self.state == State::Still {
+                        self.step = 0;
+                        match self.selected {
+                            Algo::Huffman => {
+                                self.huffman = Huffman::encode(&self.input);
+                                // 1: freq table steps (for each unique character)
+                                let freq_steps = self.huffman.freq_table.len();
+                                // 2: building tree steps (for each merge)
+                                let merge_steps = freq_steps.saturating_sub(1);
+                                // 3: code table steps (for each unique character)
+                                let code_steps = self.huffman.code_table.len();
+                                self.total_steps = freq_steps + merge_steps + code_steps;
+                            }
+                            Algo::Lzw => {
+                                self.lzw = Lzw::encode(&self.input);
+                                self.total_steps = self.lzw.steps.len();
+                            }
                         }
-                        Algo::Lzw => {}
                     }
+                    self.state = if self.state == State::Playing {
+                        State::Paused
+                    } else {
+                        State::Playing
+                    };
                 }
-                self.state = if self.state == State::Playing {
-                    State::Paused
-                } else {
-                    State::Playing
-                };
-            }
 
-            // Step Info Label
-            ui.add_space(10.0);
-            ui.separator();
-            ui.add_space(5.0);
-            ui.label(format!("Step: {} / {}", self.step, self.total_steps));
-        });
+                // Step Info Label
+                ui.add_space(10.0);
+                ui.separator();
+                ui.add_space(5.0);
+                ui.label(format!("Step: {} / {}", self.step, self.total_steps));
+            });
 
         // Right Panel
-        egui::Panel::right("encoder").resizable(true).default_size(240.0).show_inside(ui, |ui| {
-            ui.add_space(20.0);
-            ui.heading("Table");
-            ui.separator();
-            ui.add_space(10.0);
+        egui::Panel::right("encoder")
+            .resizable(true)
+            .default_size(240.0)
+            .show_inside(ui, |ui| {
+                ui.add_space(20.0);
+                ui.heading("Table");
+                ui.separator();
+                ui.add_space(10.0);
 
-            match self.selected {
-                Algo::Huffman => {
-                    // Convert frequency table to Vec
-                    let mut freq_vec: Vec<(char, u32)> = self.huffman.freq_table
-                        .iter()
-                        .map(|(&ch, &fr)| (ch, fr))
-                        .collect();
-                    freq_vec.sort_by_key(|&(_, f)| f);
+                match self.selected {
+                    Algo::Huffman => {
+                        // Convert frequency table to Vec
+                        let mut freq_vec: Vec<(char, u32)> = self
+                            .huffman
+                            .freq_table
+                            .iter()
+                            .map(|(&ch, &fr)| (ch, fr))
+                            .collect();
+                        freq_vec.sort_by_key(|&(_, f)| f);
 
-                    let freq_count = freq_vec.len();
-                    let merge_count = freq_count.saturating_sub(1);
+                        let freq_count = freq_vec.len();
+                        let merge_count = freq_count.saturating_sub(1);
 
-                    // Code phase
-                    let code_phase_start = freq_count + merge_count;
+                        // Code phase
+                        let code_phase_start = freq_count + merge_count;
 
-                    // Convert code table to Vec
-                    let code_vec: Vec<(char, String)> = freq_vec.iter()
-                        .filter_map(|(ch, _)| {
-                            self.huffman.code_table.get(ch).map(|c| (*ch, c.clone()))
-                        })
-                        .collect();
+                        // Convert code table to Vec
+                        let code_vec: Vec<(char, String)> = freq_vec
+                            .iter()
+                            .filter_map(|(ch, _)| {
+                                self.huffman.code_table.get(ch).map(|c| (*ch, c.clone()))
+                            })
+                            .collect();
 
-                    ui.add(egui::Label::new(
-                        egui::RichText::new("Char  Freq  Code").monospace().weak()
-                    ));
-                    ui.add_space(4.0);
+                        ui.add(egui::Label::new(
+                            egui::RichText::new("Char  Freq  Code").monospace().weak(),
+                        ));
+                        ui.add_space(4.0);
 
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        ui.set_min_width(ui.available_width());
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            ui.set_min_width(ui.available_width());
 
-                        for (i, (ch, freq)) in freq_vec.iter().enumerate() {
-                            // Is this line visible
-                            if i >= self.step && self.step <= freq_count {
-                                break;
-                            }
+                            for (i, (ch, freq)) in freq_vec.iter().enumerate() {
+                                // Is this line visible
+                                if i >= self.step && self.step <= freq_count {
+                                    break;
+                                }
 
-                            // Is the code column full
-                            let code_str = if self.step > code_phase_start + i {
-                                code_vec.get(i).map(|(_, c)| c.as_str()).unwrap_or("*")
-                            } else {
-                                "*"
-                            };
+                                // Is the code column full
+                                let code_str = if self.step > code_phase_start + i {
+                                    code_vec.get(i).map(|(_, c)| c.as_str()).unwrap_or("*")
+                                } else {
+                                    "*"
+                                };
 
-                            ui.group(|ui| {
-                                ui.horizontal(|ui| {
-                                    ui.colored_label(Color32::from_rgb(100, 180, 255),
-                                        format!("  {}   ", ch));
-                                    ui.colored_label(Color32::from_rgb(220, 200, 100),
-                                        format!(" {:4}  ", freq));
-                                    ui.colored_label(
-                                        if code_str == "*" {
-                                            Color32::GRAY
-                                        } else {
-                                            Color32::from_rgb(100, 220, 140)
-                                        },
-                                        format!("{:>8}", code_str),
-                                    );
+                                ui.group(|ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.colored_label(
+                                            Color32::from_rgb(100, 180, 255),
+                                            format!("  {}   ", ch),
+                                        );
+                                        ui.colored_label(
+                                            Color32::from_rgb(220, 200, 100),
+                                            format!(" {:4}  ", freq),
+                                        );
+                                        ui.colored_label(
+                                            if code_str == "*" {
+                                                Color32::GRAY
+                                            } else {
+                                                Color32::from_rgb(100, 220, 140)
+                                            },
+                                            format!("{:>8}", code_str),
+                                        );
+                                    });
                                 });
-                            });
-                        }
-                    });
+                            }
+                        });
+                    }
+                    Algo::Lzw => {
+                        ui.label(egui::RichText::new("Code  String").monospace().weak());
+                        ui.add_space(4.0);
+
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            ui.set_min_width(ui.available_width());
+
+                            let mut dict_vec: Vec<(String, String)> = self
+                                .lzw
+                                .code_table
+                                .iter()
+                                .map(|(k, v)| (k.clone(), v.clone()))
+                                .collect();
+                            dict_vec.sort_by_key(|(_, v)| v.parse::<usize>().unwrap_or(0));
+
+                            // Display only the entries added so far
+                            let visible_dict: Vec<_> = dict_vec
+                                .iter()
+                                .filter(|(_, v)| v.parse::<usize>().unwrap_or(0) < self.step)
+                                .collect();
+
+                            for (key, code) in &visible_dict {
+                                ui.group(|ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.colored_label(
+                                            Color32::from_rgb(220, 200, 100),
+                                            format!("  {:<3}    ", code),
+                                        );
+                                        ui.colored_label(
+                                            Color32::from_rgb(100, 180, 255),
+                                            format!("  {:>4} ", key),
+                                        );
+                                    });
+                                });
+                            }
+                        });
+                    }
                 }
-                Algo::Lzw => {
-                    ui.label(egui::RichText::new("Code  Value").monospace().weak());
-                }
-            }
-        });
+            });
 
         // Middle Panel
         egui::CentralPanel::default().show_inside(ui, |ui| {
@@ -262,10 +318,8 @@ impl eframe::App for AlgoApp {
                                     self.step - tree_phase_start
                                 };
 
-                                let (response, painter) = ui.allocate_painter(
-                                    ui.available_size(),
-                                    egui::Sense::hover(),
-                                );
+                                let (response, painter) =
+                                    ui.allocate_painter(ui.available_size(), egui::Sense::hover());
                                 let rect = response.rect;
 
                                 if let Some(root) = &self.huffman.tree_root {
@@ -280,10 +334,8 @@ impl eframe::App for AlgoApp {
                                 }
                             } else {
                                 // The canvas is empty in frequency steps
-                                let (response, painter) = ui.allocate_painter(
-                                    ui.available_size(),
-                                    egui::Sense::hover(),
-                                );
+                                let (response, painter) =
+                                    ui.allocate_painter(ui.available_size(), egui::Sense::hover());
                                 painter.text(
                                     response.rect.center(),
                                     Align2::CENTER_CENTER,
@@ -294,10 +346,92 @@ impl eframe::App for AlgoApp {
                             }
                         }
                         Algo::Lzw => {
-                            ui.centered_and_justified(|ui| {
-                                ui.label(egui::RichText::new("📊 LZW Table Field")
-                                    .size(24.0)
-                                    .color(Color32::DARK_GRAY));
+                            // Column headers
+                            ui.add_space(8.0);
+                            egui::Grid::new("lzw_header")
+                                .num_columns(7)
+                                .min_col_width(60.0)
+                                .show(ui, |ui| {
+                                    for header in [
+                                        "Step", "Input", "Buffer", "In Dict", "Temp", "ATD",
+                                        "Output",
+                                    ] {
+                                        ui.label(
+                                            egui::RichText::new(header)
+                                                .monospace()
+                                                .strong()
+                                                .color(Color32::GRAY),
+                                        );
+                                    }
+                                    ui.end_row();
+                                });
+
+                            ui.separator();
+
+                            egui::ScrollArea::vertical().show(ui, |ui| {
+                                egui::Grid::new("lzw_steps")
+                                    .num_columns(7)
+                                    .min_col_width(60.0)
+                                    .striped(true)
+                                    .show(ui, |ui| {
+                                        for (i, step) in self.lzw.steps.iter().enumerate() {
+                                            if i >= self.step {
+                                                break;
+                                            }
+
+                                            let add_cell =
+                                                |ui: &mut egui::Ui, text: &str, color: Color32| {
+                                                    ui.colored_label(color, text);
+                                                };
+
+                                            add_cell(
+                                                ui,
+                                                &step.number.to_string(),
+                                                Color32::from_rgb(180, 180, 180),
+                                            );
+                                            add_cell(
+                                                ui,
+                                                &step.input.to_string(),
+                                                Color32::from_rgb(100, 200, 255),
+                                            );
+                                            add_cell(
+                                                ui,
+                                                &step.buffer,
+                                                Color32::from_rgb(220, 220, 100),
+                                            );
+
+                                            let in_dict_str =
+                                                if step.in_dict { "✔" } else { "×" };
+                                            let in_dict_color = if step.in_dict {
+                                                Color32::from_rgb(100, 220, 100)
+                                            } else {
+                                                Color32::from_rgb(220, 100, 100)
+                                            };
+                                            add_cell(ui, in_dict_str, in_dict_color);
+
+                                            add_cell(
+                                                ui,
+                                                &step.temp,
+                                                Color32::from_rgb(200, 160, 255),
+                                            );
+
+                                            let atd_color = if step.atd == "--" {
+                                                Color32::GRAY
+                                            } else {
+                                                Color32::from_rgb(255, 180, 80)
+                                            };
+                                            add_cell(ui, &step.atd, atd_color);
+
+                                            let output_color = if step.output == "--" {
+                                                Color32::GRAY
+                                            } else {
+                                                Color32::from_rgb(100, 240, 160)
+                                            };
+                                            add_cell(ui, &step.output, output_color);
+
+                                            ui.end_row();
+                                        }
+                                    });
                             });
                         }
                     }
@@ -306,7 +440,7 @@ impl eframe::App for AlgoApp {
     }
 }
 
-// Draw Node recursively — show as many merges as visible_merges
+// Draw node recursively — show as many merges as visible_merges
 fn draw_node(
     painter: &Painter,
     node: &Node,
@@ -351,7 +485,14 @@ fn draw_node(
         }
 
         // Draw child recursively - even if the parent is not visible
-        draw_node(painter, left, child_x, child_y, half_width / 2.0, visible_merges);
+        draw_node(
+            painter,
+            left,
+            child_x,
+            child_y,
+            half_width / 2.0,
+            visible_merges,
+        );
     }
 
     // Right child
@@ -378,7 +519,14 @@ fn draw_node(
             );
         }
 
-        draw_node(painter, right, child_x, child_y, half_width / 2.0, visible_merges);
+        draw_node(
+            painter,
+            right,
+            child_x,
+            child_y,
+            half_width / 2.0,
+            visible_merges,
+        );
     }
 
     // Do not draw if it is not visible
@@ -431,8 +579,6 @@ fn draw_node(
     }
 }
 
-
-
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -447,3 +593,4 @@ fn main() -> eframe::Result<()> {
         Box::new(|_cc| Ok(Box::new(AlgoApp::default()))),
     )
 }
+
