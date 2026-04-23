@@ -102,7 +102,7 @@ impl Huffman {
 
 
 
-// Travel through the tree for coding
+// Traverse the tree to build code table
 fn travel(code_table: &mut HashMap<char, String>, node: &Option<Box<Node>>, code: String) {
     if let Some(n) = node {
         match n.val {
