@@ -7,7 +7,7 @@ use crate::algorithms::huffman::{Huffman, Node, NodeKind};
 use crate::algorithms::lzw::Lzw;
 
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 enum Algo {
     Huffman,
     Lzw,
@@ -22,6 +22,7 @@ enum State {
 
 struct AlgoApp {
     selected: Algo,
+    prev_selected: Algo,
     input: String,
     state: State,
     speed: f32,
@@ -36,6 +37,7 @@ impl Default for AlgoApp {
     fn default() -> Self {
         Self {
             selected: Algo::Huffman,
+            prev_selected: Algo::Huffman,
             input: "".to_owned(),
             state: State::Still,
             speed: 5.0,
@@ -56,10 +58,23 @@ impl AlgoApp {
             self.state = State::Still;
         }
     }
+
+    fn reset(&mut self) {
+        self.step = 0;
+        self.total_steps = 0;
+        self.state = State::Still;
+
+        self.huffman = Huffman::default();
+        self.lzw = Lzw::default();
+    }
 }
 
 impl eframe::App for AlgoApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if self.selected != self.prev_selected {
+            self.reset();
+            self.prev_selected = self.selected;
+        }
         let ctx = ui.ctx().clone();
 
         // Style
