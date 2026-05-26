@@ -103,7 +103,14 @@ impl Huffman {
 
     // Create code table
     fn code_elements(&mut self) {
-        travel(&mut self.code_table, &self.tree_root, String::new());
+        match &self.tree_root {
+            Some(node) if node.left.is_none() && node.right.is_none() => {
+                if let NodeKind::Leaf(ch) = node.val {
+                    self.code_table.insert(ch, "0".to_string());
+                }
+            }
+            _ => travel(&mut self.code_table, &self.tree_root, String::new()),
+        }
     }
 }
 
