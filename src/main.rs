@@ -33,6 +33,10 @@ struct AlgoApp {
     step: usize,
     total_steps: usize,
     huf_scroll_check: bool,
+    huf_freq_vec: Vec<(char, u32)>,
+    huf_code_vec: Vec<(char, String)>,
+    huf_tree_width: f32,
+    lzw_dict_vec: Vec<(String, String)>,
     file: &'static str,
     huffman: Huffman,
     lzw: Lzw,
@@ -50,6 +54,10 @@ impl Default for AlgoApp {
             step: 0,
             total_steps: 0,
             huf_scroll_check: true,
+            huf_freq_vec: Vec::new(),
+            huf_code_vec: Vec::new(),
+            huf_tree_width: 0.0,
+            lzw_dict_vec: Vec::new(),
             file: FILE,
             huffman: Huffman::default(),
             lzw: Lzw::default(),
@@ -73,6 +81,11 @@ impl AlgoApp {
 
         self.huffman = Huffman::default();
         self.lzw = Lzw::default();
+
+        self.huf_freq_vec.clear();
+        self.huf_code_vec.clear();
+        self.huf_tree_width = 0.0;
+        self.lzw_dict_vec.clear();
     }
 }
 
@@ -83,14 +96,6 @@ impl eframe::App for AlgoApp {
             self.prev_selected = self.selected;
         }
         let ctx = ui.ctx().clone();
-
-        // Style
-        let mut style = (*ctx.global_style()).clone();
-        style.visuals.widgets.noninteractive.corner_radius = 12.0.into();
-        style.visuals.widgets.inactive.corner_radius = 8.0.into();
-        style.visuals.widgets.active.corner_radius = 8.0.into();
-        style.visuals.widgets.hovered.corner_radius = 8.0.into();
-        ctx.set_global_style(style);
 
         // Timer
         let delay = Duration::from_millis((1100.0 - self.speed * 100.0).max(50.0) as u64);
@@ -157,6 +162,31 @@ impl eframe::App for AlgoApp {
                         match self.selected {
                             Algo::Huffman => {
                                 self.huffman = Huffman::encode(&self.input);
+
+                                let mut freq_vec: Vec<(char, u32)> = self
+                                    .huffman
+                                    .freq_table
+                                    .iter()
+                                    .map(|(&ch, &fr)| (ch, fr))
+                                    .collect();
+                                freq_vec.sort_by_key(|&(_, f)| f);
+                                self.huf_freq_vec = freq_vec;
+
+                                self.huf_code_vec = self
+                                    .huf_freq_vec
+                                    .iter()
+                                    .filter_map(|(ch, _)| {
+                                        self.huffman
+                                            .code_table
+                                            .get(ch)
+                                            .map(|c| (*ch, c.clone()))
+                                    })
+                                    .collect();
+
+                                if let Some(root) = &self.huffman.tree_root {
+                                    self.huf_tree_width = subtree_width(root, 80.0);
+                                }
+
                                 // 1: freq table steps (for each unique character)
                                 let freq_steps = self.huffman.freq_table.len();
                                 // 2: building tree steps (for each merge)
@@ -167,6 +197,18 @@ impl eframe::App for AlgoApp {
                             }
                             Algo::Lzw => {
                                 self.lzw = Lzw::encode(&self.input);
+
+                                let mut dict_vec: Vec<(String, String)> = self
+                                    .lzw
+                                    .code_table
+                                    .iter()
+                                    .map(|(k, v)| (k.clone(), v.clone()))
+                                    .collect();
+                                dict_vec.sort_by_key(|(_, v)| {
+                                    v.parse::<usize>().unwrap_or(0)
+                                });
+                                self.lzw_dict_vec = dict_vec;
+
                                 self.total_steps = self.lzw.steps.len();
                             }
                         }
@@ -197,28 +239,10 @@ impl eframe::App for AlgoApp {
 
                 match self.selected {
                     Algo::Huffman => {
-                        // Convert frequency table to Vec
-                        let mut freq_vec: Vec<(char, u32)> = self
-                            .huffman
-                            .freq_table
-                            .iter()
-                            .map(|(&ch, &fr)| (ch, fr))
-                            .collect();
-                        freq_vec.sort_by_key(|&(_, f)| f);
-
-                        let freq_count = freq_vec.len();
+                        let freq_count = self.huf_freq_vec.len();
                         let merge_count = freq_count.saturating_sub(1);
-
-                        // Code phase
+                        // Code phase (freq steps + merge steps)
                         let code_phase_start = freq_count + merge_count;
-
-                        // Convert code table to Vec
-                        let code_vec: Vec<(char, String)> = freq_vec
-                            .iter()
-                            .filter_map(|(ch, _)| {
-                                self.huffman.code_table.get(ch).map(|c| (*ch, c.clone()))
-                            })
-                            .collect();
 
                         ui.add(egui::Label::new(
                             egui::RichText::new("Char  Freq  Code").monospace().weak(),
@@ -228,7 +252,7 @@ impl eframe::App for AlgoApp {
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             ui.set_min_width(ui.available_width());
 
-                            for (i, (ch, freq)) in freq_vec.iter().enumerate() {
+                            for (i, (ch, freq)) in self.huf_freq_vec.iter().enumerate() {
                                 // Is this line visible
                                 if i >= self.step && self.step <= freq_count {
                                     break;
@@ -236,7 +260,7 @@ impl eframe::App for AlgoApp {
 
                                 // Is the code column full
                                 let code_str = if self.step > code_phase_start + i {
-                                    code_vec.get(i).map(|(_, c)| c.as_str()).unwrap_or("*")
+                                    self.huf_code_vec.get(i).map(|(_, c)| c.as_str()).unwrap_or("*")
                                 } else {
                                     "*"
                                 };
@@ -271,16 +295,9 @@ impl eframe::App for AlgoApp {
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             ui.set_min_width(ui.available_width());
 
-                            let mut dict_vec: Vec<(String, String)> = self
-                                .lzw
-                                .code_table
-                                .iter()
-                                .map(|(k, v)| (k.clone(), v.clone()))
-                                .collect();
-                            dict_vec.sort_by_key(|(_, v)| v.parse::<usize>().unwrap_or(0));
-
                             // Display only the entries added so far
-                            let visible_dict: Vec<_> = dict_vec
+                            let visible_dict: Vec<_> = self
+                                .lzw_dict_vec
                                 .iter()
                                 .filter(|(_, v)| v.parse::<usize>().unwrap_or(0) < self.step)
                                 .collect();
@@ -308,10 +325,10 @@ impl eframe::App for AlgoApp {
         egui::CentralPanel::default().show_inside(ui, |ui| {
             ui.add_space(10.0);
             ui.vertical_centered(|ui| {
-                let phase = if self.huffman.freq_table.is_empty() {
+                let phase = if self.huf_freq_vec.is_empty() {
                     "—".to_owned()
                 } else {
-                    let freq_count = self.huffman.freq_table.len();
+                    let freq_count = self.huf_freq_vec.len();
                     let merge_count = freq_count.saturating_sub(1);
                     let code_start = freq_count + merge_count;
                     if self.step <= freq_count {
@@ -336,7 +353,7 @@ impl eframe::App for AlgoApp {
                     match self.selected {
                         Algo::Huffman => {
                             egui::ScrollArea::horizontal().show(ui, |ui| {
-                                let freq_count = self.huffman.freq_table.len();
+                                let freq_count = self.huf_freq_vec.len();
                                 let merge_count = freq_count.saturating_sub(1);
 
                                 let tree_phase_start = freq_count;
@@ -350,10 +367,9 @@ impl eframe::App for AlgoApp {
                                         self.step - tree_phase_start
                                     };
 
-
                                     let width =
-                                        if let Some(node) = &self.huffman.tree_root && self.huf_scroll_check {
-                                            subtree_width(node, 80.0)
+                                        if self.huf_tree_width > 0.0 && self.huf_scroll_check {
+                                            self.huf_tree_width
                                         } else {
                                             ui.available_width()
                                         };
@@ -667,7 +683,15 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "Encode",
         options,
-        Box::new(|_cc| Ok(Box::new(AlgoApp::default()))),
+        Box::new(|cc| {
+            let mut style = (*cc.egui_ctx.global_style()).clone();
+            style.visuals.widgets.noninteractive.corner_radius = 12.0.into();
+            style.visuals.widgets.inactive.corner_radius = 8.0.into();
+            style.visuals.widgets.active.corner_radius = 8.0.into();
+            style.visuals.widgets.hovered.corner_radius = 8.0.into();
+            cc.egui_ctx.set_global_style(style);
+            Ok(Box::new(AlgoApp::default()))
+        }),
     )
 }
 
