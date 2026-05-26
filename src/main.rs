@@ -310,18 +310,31 @@ impl AlgoApp {
     fn draw_visualization(&mut self, ui: &mut egui::Ui) {
         ui.add_space(10.0);
         ui.vertical_centered(|ui| {
-            let phase = if self.huf_freq_vec.is_empty() {
-                "—".to_owned()
-            } else {
-                let freq_count = self.huf_freq_vec.len();
-                let merge_count = freq_count.saturating_sub(1);
-                let code_start = freq_count + merge_count;
-                if self.step <= freq_count {
-                    "Building frequency table".to_owned()
-                } else if self.step <= code_start {
-                    "Building tree".to_owned()
-                } else {
-                    "Building code table".to_owned()
+            let phase = match self.selected {
+                Algo::Huffman => {
+                    if self.huf_freq_vec.is_empty() {
+                        "—".to_owned()
+                    } else {
+                        let freq_count = self.huf_freq_vec.len();
+                        let merge_count = freq_count.saturating_sub(1);
+                        let code_start = freq_count + merge_count;
+                        if self.step <= freq_count {
+                            "Building frequency table".to_owned()
+                        } else if self.step <= code_start {
+                            "Building tree".to_owned()
+                        } else {
+                            "Building code table".to_owned()
+                        }
+                    }
+                }
+                Algo::Lzw => {
+                    if self.lzw.steps.is_empty() {
+                        "—".to_owned()
+                    } else if self.step == 0 {
+                        "Initializing dictionary".to_owned()
+                    } else {
+                        "Encoding stream".to_owned()
+                    }
                 }
             };
             ui.heading(format!("Step {}  —  {}", self.step, phase));
