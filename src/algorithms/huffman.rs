@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    cmp::Reverse,
+    collections::HashMap
+};
 
 
 pub enum NodeKind {
@@ -67,7 +70,7 @@ impl Huffman {
     }
 
 
-    // Create tree (Min Heap)
+    // Create tree
     fn create_tree(&mut self) {
         // Firstly collect nodes
         let mut node_list: Vec<Node> = vec![];
@@ -76,25 +79,25 @@ impl Huffman {
             node_list.push(Node::new(k, v))
         }
 
-        // Sort by frequency, smallest to largest
-        node_list.sort_unstable_by_key(|n| n.freq);
+        // Sort by frequency, largest to smallest
+        node_list.sort_unstable_by_key(|n| Reverse(n.freq));
 
         // Create internal nodes and the tree structure
         let mut merge_count = 0;
         while node_list.len() > 1 {
             // Get first two elements
-            let first: Node = node_list.remove(0);
-            let second: Node = node_list.remove(0);
+            let first: Node = node_list.pop().unwrap();
+            let second: Node = node_list.pop().unwrap();
 
             // merge it
             // than insert the merged one to the right position in the list
             merge_count += 1;
             let internal = Node::merge(first, second, merge_count);
-            let position = node_list.partition_point(|n| n.freq < internal.freq);
+            let position = node_list.partition_point(|n| n.freq > internal.freq);
             node_list.insert(position, internal);
         }
 
-        self.tree_root = Some(Box::new(node_list.remove(0)));
+        self.tree_root = Some(Box::new(node_list.pop().unwrap()));
     }
 
 
