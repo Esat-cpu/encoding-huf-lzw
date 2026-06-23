@@ -132,7 +132,6 @@ fn travel(code_table: &mut HashMap<char, String>, node: &Option<Box<Node>>, code
 }
 
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -390,5 +389,4 @@ mod tests {
         assert_eq!(orders.len(), 7);
     }
 }
-
 
